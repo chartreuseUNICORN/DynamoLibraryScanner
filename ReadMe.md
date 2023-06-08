@@ -1,4 +1,4 @@
-# Dynamo Node Analysis
+# Dynamo Library Scanner
 
 This project is a command-line interface tool for analyzing JSON files generated from Dynamo, which is a visual programming tool. It can process a single file or a directory containing multiple files.
 
@@ -15,7 +15,7 @@ git clone https://github.com/your-repo/dynamo-node-analysis.git
 Once cloned, navigate into the project's directory:
 
 ```
-cd dynamo-node-analysis
+cd DynamoLibraryScanner
 ```
 
 ## Usage
