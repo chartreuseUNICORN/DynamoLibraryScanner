@@ -3,6 +3,7 @@ import json
 import csv
 import xml.etree.ElementTree as ET
 import argparse
+#import tabulate
 
 def read_deprecated_methods(deprecated_methods_file):
     with open(deprecated_methods_file, 'r') as f:
@@ -21,7 +22,7 @@ def report_package_usage (data):
     report = [(package.Name,package.Version,len(package.Nodes)) for package in packages]
     return report
 
-def search_deprecated_methods( data, deprecated_methods):
+def search_deprecated_methods( data):
     searchResult = []
     name = data.get('Name','')
     nodes = data.get('Nodes', [])
@@ -29,11 +30,9 @@ def search_deprecated_methods( data, deprecated_methods):
         function_signature = node.get('FunctionSignature', '')
         node_type = node.get('NodeType','')
         if node_type == 'FunctionNode':
-            if function_signature in deprecated_methods:
                 searchResult.append(function_signature) 
-    #if deprecated_found:
-    #    print ("{0}: Found {1} Deprecated Methods".format(name,len(deprecated_found)))
-    return searchResult
+    # does this need to return all nodes, or all unique nodes
+    return list(set(searchResult))
 
 def search_python_nodes (data):
     searchResult = []
@@ -66,7 +65,7 @@ def search_dependencies (data):
     return searchResult
 
 def find_files_with_extension(directory, extension):
-    """Find all files in the directory with the given extension."""
+    #Find all files in the directory with the given extension.
     found_files = []
     for root, _, files in os.walk(directory):
         for file in files:
@@ -84,9 +83,52 @@ def search_file_methods (json_file, deprecated_methods):
 def write_data_to_csv(data, filename):
     with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["File Path", "Node Names"])  # writing the header
         for item in data:
             writer.writerow(item)
+
+def generate_report(data,flags):
+    # TODO: could be good to add total node count
+    #   1 i feel like  these searches could be combined in some way
+    #   2 want to include flagged lists for each metric (nodes, python nodes, code blocks, dependencies)
+    #   3 make flags optional in report generation, searches (what's the best way to do this, polymorphism? pass an empty argument?)
+
+    fNodes = flags.get('FlaggedNodes','')
+    fPackages = flags.get('FlaggedPackages','')
+    
+    sr_methods = search_deprecated_methods(data)
+    sr_python_nodes = search_python_nodes(data)
+    sr_code_blocks = search_code_blocks(data)
+    sr_dependencies = search_dependencies(data)
+
+    flagged_Nodes = list(set(sr_methods) & set(fNodes))
+    flagged_Packages = [i[0] for i in sr_dependencies if i[0] in fPackages]
+    
+    # so what does this want to be:
+    # Nodes/Flagged Nodes
+    # PythonNodeCount / Flagged Python Nodes
+    # CodeBlockCount / Flagged Code Blocks
+    # DependencyCount / Flagged Dependency Count
+    if len(flagged_Packages) > len(fPackages):
+        print("hold up")
+
+    report = {
+            'Name': data.get('Name',''),
+            'Summary':{
+                'Unique Node Count': len(sr_methods),
+                'Flagged Node Count':len(flagged_Nodes),
+                'Python Node Count': len(sr_python_nodes),
+                'Code Block Count': len(sr_code_blocks),
+                'Dependency Count': len(sr_dependencies),
+                'Flagged Dependency Count': len(list(set(flagged_Packages)))
+            },
+            'Report': {
+                'Deprecated Nodes': {'Node': list(set(sr_methods))},
+                'Python Nodes': len(sr_python_nodes),
+                'CodeBlockNodes': len(sr_code_blocks),
+                'Dependencies': [{'Name': result[0], 'Version': result[1],'NodeCount':len(result[2]), 'Nodes': result[2]} for result in sr_dependencies],
+            }
+        }
+    return report
 
 def generate_package_report (reports):
 
@@ -108,29 +150,21 @@ def generate_package_report (reports):
                                             }
     return pack_dict
 
-def generate_report(data,method_list):
-    # TODO: could be good to add total node count
-    sr_methods = search_deprecated_methods(data, method_list)
-    sr_python_nodes = search_python_nodes(data),
-    sr_code_blocks = search_code_blocks(data)
-    sr_dependencies = search_dependencies(data)
-    
-    report = {
-            'Name': data.get('Name',''),
-            'Summary':{
-                'Deprecated Node Count':len(sr_methods),
-                'Python Node Count': len(sr_python_nodes),
-                'Code Block Count': len(sr_code_blocks),
-                'Dependency Count': len(sr_dependencies)
-            },
-            'Report': {
-                'Deprecated Nodes': {'Node': list(set(sr_methods))},
-                'Python Nodes': len(sr_python_nodes),
-                'CodeBlockNodes': len(sr_code_blocks),
-                'Dependencies': [{'Name': result[0], 'Version': result[1],'NodeCount':len(result[2]), 'Nodes': result[2]} for result in sr_dependencies],
-            }
-        }
-    return report
+def generate_report_compressed(reports):
+    compressed = [['Name','Flagged Nodes','Python Nodes','Code Blocks','Dependencies',"Flagged Dependencies"]]
+    for report in reports:
+        summary = report['Summary']
+        compressed.append([
+                            report['Name'],
+                            summary['Flagged Node Count'],
+                            summary['Python Node Count'],
+                            summary['Code Block Count'],
+                            summary['Dependency Count'],
+                            summary['Flagged Dependency Count']
+                            ]
+                        )
+
+    return compressed
 
 def generate_report_summary(reports):
     
@@ -138,15 +172,17 @@ def generate_report_summary(reports):
     python_node_summary = {}
     code_block_summary = {}
     dependency_summary = {}
-
+    fdependency_summary = {}
+    #TODO: condense these repeated patterns
     for report in reports:
         #report = r[next(iter(r))]
         rName = report["Name"]
         rSum = report["Summary"]
-        dnc = rSum["Deprecated Node Count"]
+        dnc = rSum["Flagged Node Count"]
         pnc = rSum["Python Node Count"]
         cnc = rSum["Code Block Count"]
         dc = rSum["Dependency Count"]
+        fdc = rSum['Flagged Dependency Count']
         
         if dnc > 0:
             deprecated_node_summary[rName] = dnc
@@ -156,6 +192,8 @@ def generate_report_summary(reports):
             code_block_summary[rName] = cnc
         if dc > 0:
             dependency_summary[rName] = dc
+        if fdc > 0:
+            fdependency_summary[rName] = fdc
     
     summary = {
                     "Files with Deprecated Nodes": {
@@ -174,6 +212,10 @@ def generate_report_summary(reports):
                         "Count":len(dependency_summary),
                         "Scripts":dependency_summary
                     },
+                    "Flagged Dependencies": {
+                        "Count": len(fdependency_summary),
+                        "Scripts": fdependency_summary
+                    }
                 }
     return summary
         
@@ -253,7 +295,7 @@ def testmulti(path,deprecated_methods_file):
 def main():
     # define CLI arguments
     parser = argparse.ArgumentParser(description='Analyze JSON files')
-
+    #TODO: update these variable names, add try/catch to enable run without flag definitions
     parser.add_argument('deprecated_methods_file', help='File containing deprecated methods')
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -265,10 +307,11 @@ def main():
     report_group.add_argument('-s', '--summary', action='store_true', help='Output summary report')
     report_group.add_argument('-a', '--detailed', action='store_true', help='Output detailed report')
     report_group.add_argument('-p', '--package', action='store_true', help='Output package summary')
+    report_group.add_argument('-c', '--compressed', action='store_true', help='Output package summary')
 
     args = parser.parse_args()
     print("\n\nBEGIN\n\n")
-    deprecated_methods = read_deprecated_methods(args.deprecated_methods_file)
+    flags = read_json_file(args.deprecated_methods_file)
 
     output_directory = ''
     reports = []
@@ -278,13 +321,13 @@ def main():
         print(f'Analyzing directory: {full_path}')
         file_list = find_files_with_extension(full_path,'.dyn')
         print('-- Found {0} Files'.format(len(file_list)))
-        reports = [generate_report(read_json_file(file), deprecated_methods) for file in file_list]
+        reports = [generate_report(read_json_file(file), flags) for file in file_list]
         print("-- SCAN COMPLETE --\n")
         output_directory = full_path
 
     elif args.file:
         print(f'Analyzing file: {args.file}')
-        reports = generate_report(read_json_file(args.file), deprecated_methods)
+        reports = generate_report(read_json_file(args.file), flags)
         print("-- SCAN COMPLETE --")
         output_directory = os.path.dirname(os.path.expanduser(args.file))
 
@@ -299,6 +342,17 @@ def main():
     if args.detailed:
         output['Detailed'] = reports
         print("- Detailed report generated")
+    if args.compressed:
+        compressed = generate_report_compressed(reports)
+        print("- Compressed report generated")
+        """user_input = input("\nDisplay Compressed Summary? (y/n):")
+        
+        if user_input.lower() == 'y':
+                print(tabulate(compressed, headers = 'firstrow', tablefmt = 'fance_grid'))"""
+
+        with open(os.path.join(output_directory, 'DynamoNodeAnalysis_Compressed.csv'), 'w', newline = '') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerows(compressed)
 
     write_reports_to_json(output, os.path.join(output_directory, "DynamoNodeAnalysis.json"))
     print ("\n\n-- Dynamo Library Scan Complete --\n\n")
