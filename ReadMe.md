@@ -20,23 +20,13 @@ cd dynamo-node-analysis
 
 ## Usage
 
-To use this tool, you need to provide it with the location of the JSON files to be analyzed and a list of deprecated methods. The list of deprecated methods should be in a plain text file, with one method per line.
+To use this tool, you need to provide the JSON file with elements to flag, the location of the JSON files to be analyzed, and the flags for reports. See the resources folder for a sample flagged components file
 
 Here are the basic commands to run the script:
 
 Analyze all JSON files in the current directory:
 ```
-python main.py deprecated_methods_file -d
-```
-
-Analyze all JSON files in a specified directory:
-```
-python main.py deprecated_methods_file -d directory
-```
-
-Analyze a single JSON file:
-```
-python main.py deprecated_methods_file -f file
+python DynamoLibraryScan.py deprecated_methods_file -d
 ```
 
 Arguments:
@@ -54,17 +44,11 @@ The reports are written to a JSON file in the same directory where the script wa
 For example, to generate a detailed and summary report for all files in a directory, use the following command:
 
 ```
-python main.py deprecated_methods_file -d directory -s -a
+python DynamoLibraryScan.py deprecated_methods_file -d directory -s -a
 ```
 
 Remember to replace `directory`, `file`, and `deprecated_methods_file` with your actual paths.
 
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
-
----
