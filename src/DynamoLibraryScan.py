@@ -5,6 +5,15 @@ import xml.etree.ElementTree as ET
 import argparse
 #import tabulate
 
+def find_files_with_extension(directory, extension):
+    #Find all files in the directory with the given extension.
+    found_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(extension):
+                found_files.append(os.path.join(root, file))
+    return found_files
+
 def read_deprecated_methods(deprecated_methods_file):
     with open(deprecated_methods_file, 'r') as f:
         deprecated_methods = f.read().splitlines()
@@ -63,15 +72,6 @@ def search_dependencies (data):
         if dType == "Package":    
             searchResult.append((d.get('Name',''),d.get('Version',''),d.get('Nodes',[])))
     return searchResult
-
-def find_files_with_extension(directory, extension):
-    #Find all files in the directory with the given extension.
-    found_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(extension):
-                found_files.append(os.path.join(root, file))
-    return found_files
 
 def search_file_methods (json_file, deprecated_methods):    
     data = read_json_file(json_file)
