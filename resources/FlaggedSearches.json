@@ -21,6 +21,9 @@
 
     ],
     "FlaggedPackages":[
-    "archi-lab.net"
+    "archi-lab.net",
+    "designtech",
+    "SteamNodes",
+    "spring nodes"
     ]
 }
