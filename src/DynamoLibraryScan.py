@@ -251,9 +251,9 @@ def testmulti(path,deprecated_methods_file):
 
 #--------------MAIN-------------------#
 def main():
-        #define CLI arguments
+    # define CLI arguments
     parser = argparse.ArgumentParser(description='Analyze JSON files')
-    
+
     parser.add_argument('deprecated_methods_file', help='File containing deprecated methods')
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -268,28 +268,30 @@ def main():
 
     args = parser.parse_args()
     print("\n\nBEGIN\n\n")
-    # At this point, args.directory will contain the directory passed by the user
-    # or None if not provided. Similarly for args.file and args.methods
     deprecated_methods = read_deprecated_methods(args.deprecated_methods_file)
+
+    output_directory = ''
+    reports = []
+
     if args.directory:
-        # analyze all JSON files in the directory
         full_path = os.path.expanduser(args.directory)
         print(f'Analyzing directory: {full_path}')
         file_list = find_files_with_extension(full_path,'.dyn')
         print('-- Found {0} Files'.format(len(file_list)))
         reports = [generate_report(read_json_file(file), deprecated_methods) for file in file_list]
         print("-- SCAN COMPLETE --\n")
+        output_directory = full_path
 
     elif args.file:
-        # analyze single JSON file
         print(f'Analyzing file: {args.file}')
         reports = generate_report(read_json_file(args.file), deprecated_methods)
         print("-- SCAN COMPLETE --")
+        output_directory = os.path.dirname(os.path.expanduser(args.file))
 
     output = {}
 
     if args.summary:
-        output['Summary']= generate_report_summary(reports)
+        output['Summary'] = generate_report_summary(reports)
         print("- Summary report generated")
     if args.package:
         output['Package'] = generate_package_report(reports)
@@ -298,7 +300,7 @@ def main():
         output['Detailed'] = reports
         print("- Detailed report generated")
 
-    write_reports_to_json(output, "DynamoNodeAnalysis.json")
+    write_reports_to_json(output, os.path.join(output_directory, "DynamoNodeAnalysis.json"))
     print ("\n\n-- Dynamo Library Scan Complete --\n\n")
 
 if __name__ == "__main__":

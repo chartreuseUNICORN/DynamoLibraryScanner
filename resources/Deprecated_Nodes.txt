@@ -1,0 +1,14 @@
+Autodesk.DesignScript.Geometry.Curve.Offset@double
+Autodesk.DesignScript.Geometry.PolyCurve.Offset@double
+Autodesk.DesignScript.Geometry.Curve.TrimSegmentsByParameter@double[]
+Autodesk.DesignScript.Geometry.Curve.TrimSegmentsByParameter@double[],bool
+Autodesk.DesignScript.Geometry.PolyCurve.ByJoinedCurves@Autodesk.DesignScript.Geometry.Curve[],double
+Autodesk.DesignScript.Geometry.Surface.TrimWithEdgeLoops@Autodesk.DesignScript.Geometry.PolyCurve[]
+Autodesk.DesignScript.Geometry.Geometry.ImportFromSAT@var
+Autodesk.DesignScript.Geometry.Geometry.ImportFromSAT@string
+Autodesk.DesignScript.Geometry.PolyCurve.ByThickeningCurveNormal@Autodesk.DesignScript.Geometry.Curve,double,Autodesk.DesignScript.Geometry.Vector
+Autodesk.DesignScript.Geometry.Curve.SweepAsSolid@Autodesk.DesignScript.Geometry.Curve
+Autodesk.DesignScript.Geometry.Surface.BySweep@Autodesk.DesignScript.Geometry.Curve,Autodesk.DesignScript.Geometry.Curve
+Autodesk.DesignScript.Geometry.Solid.BySweep@Autodesk.DesignScript.Geometry.Curve,Autodesk.DesignScript.Geometry.Curve
+Autodesk.DesignScript.Geometry.Geometry.DeserializeFromSAB@int[]
+Autodesk.DesignScript.Geometry.Polygon.Points
