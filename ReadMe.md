@@ -4,20 +4,6 @@ This project is a command-line interface tool for analyzing JSON files generated
 
 The main purpose of this tool is to identify usage of deprecated methods and provide an overview of package usage within a given set of scripts. This will help maintainers upgrade their scripts in a controlled manner.
 
-## Installation
-
-Clone this repository to your local machine using the following command in your terminal:
-
-```
-git clone https://github.com/your-repo/dynamo-node-analysis.git
-```
-
-Once cloned, navigate into the project's directory:
-
-```
-cd DynamoLibraryScanner
-```
-
 ## Usage
 
 To use this tool, you need to provide the JSON file with elements to flag, the location of the JSON files to be analyzed, and the flags for reports. See the resources folder for a sample flagged components file
