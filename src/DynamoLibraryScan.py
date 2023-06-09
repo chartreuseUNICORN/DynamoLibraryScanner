@@ -19,10 +19,23 @@ def read_deprecated_methods(deprecated_methods_file):
         deprecated_methods = f.read().splitlines()
     return deprecated_methods
 
+def is_valid_json(file_path):
+    """Check if a file contains valid JSON."""
+    try:
+        with open(file_path, 'r') as file:
+            json.load(file)
+        return True
+    except:
+        return False
+
 def read_json_file(json_file):
     with open(json_file, 'r', encoding = 'utf8') as f:
         #datas = f.read().splitlines()
-        data = json.load(f)
+        try:
+            data = json.load(f)
+        except:
+            data = None
+            print ("Fail to Read {0}",json_file)
     return data
 
 def report_package_usage (data):
@@ -122,7 +135,7 @@ def generate_report(data,flags):
                 'Flagged Dependency Count': len(list(set(flagged_Packages)))
             },
             'Report': {
-                'Deprecated Nodes': {'Node': list(set(sr_methods))},
+                'Deprecated Nodes': {'Node': list(set(flagged_Nodes))},
                 'Python Nodes': len(sr_python_nodes),
                 'CodeBlockNodes': len(sr_code_blocks),
                 'Dependencies': [{'Name': result[0], 'Version': result[1],'NodeCount':len(result[2]), 'Nodes': result[2]} for result in sr_dependencies],
@@ -285,7 +298,8 @@ def testmulti(path,deprecated_methods_file):
         data = read_json_file(file)
         r = generate_report(data, deprecated_methods)
         reports["Script: {0}".format(r.get('Name',''))] = r
-
+    # apparently VERY OLD dynamo files are saved as xml format, not JSON
+    # 
     reports = [generate_report(read_json_file(file), deprecated_methods) for file in file_list]
     #filtered_output = list(filter(lambda x: x[-1] != [],output))
     #print("Update nodes in {0} files".format(len(filtered_output)))
@@ -321,7 +335,11 @@ def main():
         print(f'Analyzing directory: {full_path}')
         file_list = find_files_with_extension(full_path,'.dyn')
         print('-- Found {0} Files'.format(len(file_list)))
-        reports = [generate_report(read_json_file(file), flags) for file in file_list]
+        valid_file_list = [file for file in file_list if is_valid_json(file)]
+        print("-- Found {0} invalid Files".format((len(file_list)-len(valid_file_list))))
+
+        reports = [generate_report(read_json_file(file), flags) for file in valid_file_list]
+
         print("-- SCAN COMPLETE --\n")
         output_directory = full_path
 
