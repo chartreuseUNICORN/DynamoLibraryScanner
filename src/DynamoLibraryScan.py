@@ -1,311 +1,11 @@
 import os
-import json
 import csv
 import xml.etree.ElementTree as ET
 import argparse
+import FileUtils
+import Reports
 #import tabulate
 
-def find_files_with_extension(directory, extension):
-    #Find all files in the directory with the given extension.
-    found_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(extension):
-                found_files.append(os.path.join(root, file))
-    return found_files
-
-def read_deprecated_methods(deprecated_methods_file):
-    with open(deprecated_methods_file, 'r') as f:
-        deprecated_methods = f.read().splitlines()
-    return deprecated_methods
-
-def is_valid_json(file_path):
-    """Check if a file contains valid JSON."""
-    try:
-        with open(file_path, 'r') as file:
-            json.load(file)
-        return True
-    except:
-        return False
-
-def read_json_file(json_file):
-    with open(json_file, 'r', encoding = 'utf8') as f:
-        #datas = f.read().splitlines()
-        try:
-            data = json.load(f)
-        except:
-            data = None
-            print ("Fail to Read {0}",json_file)
-    return data
-
-def report_package_usage (data):
-    depends = data.get('NodeLibraryDependencies','')
-    packages = list(filter(lambda x: x.ReferenceType == 'Package',depends))
-    report = [(package.Name,package.Version,len(package.Nodes)) for package in packages]
-    return report
-
-def search_deprecated_methods( data):
-    searchResult = []
-    name = data.get('Name','')
-    nodes = data.get('Nodes', [])
-    for node in nodes:
-        function_signature = node.get('FunctionSignature', '')
-        node_type = node.get('NodeType','')
-        if node_type == 'FunctionNode':
-                searchResult.append(function_signature) 
-    # does this need to return all nodes, or all unique nodes
-    return list(set(searchResult))
-
-def search_python_nodes (data):
-    searchResult = []
-    nodes = data.get('Nodes',[])
-    for node in nodes:
-        node_type = node.get('NodeType','')
-        if node_type == 'PythonScriptNode':
-            engine = node.get('Engine','')
-            if engine == 'IronPython2':
-                searchResult.append(node_type)
-    return searchResult
-
-def search_code_blocks (data):
-    searchResult = []
-    nodes = data.get('Nodes',[])
-    for node in nodes:
-        node_type = node.get('NodeType','')
-        if node_type == 'CodeBlockNode':
-            searchResult.append(node_type)
-    return searchResult
-
-def search_dependencies (data):
-    # TODO: implement node lookup to include unique node names used in the script
-    searchResult = []
-    deps = data.get('NodeLibraryDependencies',[])
-    for d in deps:
-        dType = d.get('ReferenceType','')
-        if dType == "Package":    
-            searchResult.append((d.get('Name',''),d.get('Version',''),d.get('Nodes',[])))
-    return searchResult
-
-def search_file_methods (json_file, deprecated_methods):    
-    data = read_json_file(json_file)
-    name = data.get('Name','')
-    searchResults = search_deprecated_methods(data, deprecated_methods)
-    #print("Result: {0}".format(searchResults))
-    return (name,list(set(searchResults)))
-
-def write_data_to_csv(data, filename):
-    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
-        for item in data:
-            writer.writerow(item)
-
-def generate_report(data,flags):
-    # TODO: could be good to add total node count
-    #   1 i feel like  these searches could be combined in some way
-    #   2 want to include flagged lists for each metric (nodes, python nodes, code blocks, dependencies)
-    #   3 make flags optional in report generation, searches (what's the best way to do this, polymorphism? pass an empty argument?)
-
-    fNodes = flags.get('FlaggedNodes','')
-    fPackages = flags.get('FlaggedPackages','')
-    
-    sr_methods = search_deprecated_methods(data)
-    sr_python_nodes = search_python_nodes(data)
-    sr_code_blocks = search_code_blocks(data)
-    sr_dependencies = search_dependencies(data)
-
-    flagged_Nodes = list(set(sr_methods) & set(fNodes))
-    flagged_Packages = [i[0] for i in sr_dependencies if i[0] in fPackages]
-    
-    # so what does this want to be:
-    # Nodes/Flagged Nodes
-    # PythonNodeCount / Flagged Python Nodes
-    # CodeBlockCount / Flagged Code Blocks
-    # DependencyCount / Flagged Dependency Count
-    if len(flagged_Packages) > len(fPackages):
-        print("hold up")
-
-    report = {
-            'Name': data.get('Name',''),
-            'Summary':{
-                'Unique Node Count': len(sr_methods),
-                'Flagged Node Count':len(flagged_Nodes),
-                'Python Node Count': len(sr_python_nodes),
-                'Code Block Count': len(sr_code_blocks),
-                'Dependency Count': len(sr_dependencies),
-                'Flagged Dependency Count': len(list(set(flagged_Packages)))
-            },
-            'Report': {
-                'Deprecated Nodes': {'Node': list(set(flagged_Nodes))},
-                'Python Nodes': len(sr_python_nodes),
-                'CodeBlockNodes': len(sr_code_blocks),
-                'Dependencies': [{'Name': result[0], 'Version': result[1],'NodeCount':len(result[2]), 'Nodes': result[2]} for result in sr_dependencies],
-            }
-        }
-    return report
-
-def generate_package_report (reports):
-
-    pack_dict = {}
-    for report in reports:
-        detailed_report = report["Report"]
-        reportName = report['Name']
-        packages = detailed_report["Dependencies"]
-        for package in packages:
-            packageName = package['Name']
-            if packageName in pack_dict.keys():
-                # add package usage info to list
-                pack_dict[packageName]['Used In'].append(reportName)
-                pack_dict[packageName]['Used In Count']+=1
-            else:
-                pack_dict[package['Name']]={'Version': package['Version'],
-                                            'Used In Count':int(1),
-                                            'Used In':[report['Name']],
-                                            }
-    return pack_dict
-
-def generate_report_compressed(reports):
-    compressed = [['Name','Flagged Nodes','Python Nodes','Code Blocks','Dependencies',"Flagged Dependencies"]]
-    for report in reports:
-        summary = report['Summary']
-        compressed.append([
-                            report['Name'],
-                            summary['Flagged Node Count'],
-                            summary['Python Node Count'],
-                            summary['Code Block Count'],
-                            summary['Dependency Count'],
-                            summary['Flagged Dependency Count']
-                            ]
-                        )
-
-    return compressed
-
-def generate_report_summary(reports):
-    
-    deprecated_node_summary = {}
-    python_node_summary = {}
-    code_block_summary = {}
-    dependency_summary = {}
-    fdependency_summary = {}
-    #TODO: condense these repeated patterns
-    for report in reports:
-        #report = r[next(iter(r))]
-        rName = report["Name"]
-        rSum = report["Summary"]
-        dnc = rSum["Flagged Node Count"]
-        pnc = rSum["Python Node Count"]
-        cnc = rSum["Code Block Count"]
-        dc = rSum["Dependency Count"]
-        fdc = rSum['Flagged Dependency Count']
-        
-        if dnc > 0:
-            deprecated_node_summary[rName] = dnc
-        if pnc > 0:
-            python_node_summary[rName] = pnc
-        if cnc > 0:
-            code_block_summary[rName] = cnc
-        if dc > 0:
-            dependency_summary[rName] = dc
-        if fdc > 0:
-            fdependency_summary[rName] = fdc
-    
-    summary = {
-                    "Files with Deprecated Nodes": {
-                        "Count":len(deprecated_node_summary),
-                        "Scripts":deprecated_node_summary
-                    },
-                    "Files with Python Nodes": {
-                        "Count":len(python_node_summary),
-                        "Scripts":python_node_summary
-                    },
-                    "Files with Code Blocks": {
-                        "Count":len(code_block_summary),
-                        "Scripts":code_block_summary
-                    },
-                    "Files with Dependencies": {
-                        "Count":len(dependency_summary),
-                        "Scripts":dependency_summary
-                    },
-                    "Flagged Dependencies": {
-                        "Count": len(fdependency_summary),
-                        "Scripts": fdependency_summary
-                    }
-                }
-    return summary
-        
-"""def dict_to_xml(tag, d):
-    elem = ET.Element(tag)
-    for key, val in d.items():
-        if isinstance(val, dict):
-            child = dict_to_xml(key, val)
-        elif isinstance(val, list):
-            child = ET.SubElement(elem, key)
-            for el in val:
-                if isinstance(el, dict):
-                    grandchild = dict_to_xml(key[:-1], el)  # Removes "s" from the key for individual elements
-                    child.append(grandchild)
-                else:
-                    grandchild = ET.Element(key[:-1])  # Removes "s" from the key for individual elements
-                    grandchild.text = el
-                    child.append(grandchild)
-        else:
-            child = ET.Element(key)
-            child.text = str(val)
-        elem.append(child)
-    return elem"""
-
-def write_reports_to_json(reports, filename):
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(reports, f, ensure_ascii=False, indent=4)
-
-def get_full_path_from_partial(partial_path):
-    current_dir = os.getcwd()
-    split_dir = current_dir.split(os.sep)
-    split_partial = partial_path.split(os.sep)
-
-    # Find the common path
-    common_path = os.path.commonprefix([split_dir, split_partial])
-
-    # Handle the case where there's no common path
-    if not common_path:
-        raise ValueError('No common path found')
-
-    # Find the uncommon path from the partial path
-    uncommon_path = os.sep.join(split_partial[len(common_path):])
-
-    # Return the joined common and uncommon paths
-    return os.path.join(os.sep.join(common_path), uncommon_path)
-
-#--------------TEST FUNCTIONS----------------#
-def testNewFunctions(testfile, deprecated_methods_file):
-    
-    deprecated_methods = read_deprecated_methods(deprecated_methods_file)
-    testJson = read_json_file(testfile)
-
-    pythonNodes = search_python_nodes(testJson)
-    codeBlocks = search_code_blocks(testJson)
-    dependencies = search_dependencies(testJson)
-
-    output = generate_report(testJson,deprecated_methods)
-
-    print("TEST COMPLETE")
-
-def testmulti(path,deprecated_methods_file):
-    deprecated_methods = read_deprecated_methods(deprecated_methods_file)
-    file_list = find_files_with_extension(path,'.dyn')
-    reports = {}
-    print("{0} files found".format(len(file_list)))
-    for file in file_list:
-        data = read_json_file(file)
-        r = generate_report(data, deprecated_methods)
-        reports["Script: {0}".format(r.get('Name',''))] = r
-    # apparently VERY OLD dynamo files are saved as xml format, not JSON
-    # 
-    reports = [generate_report(read_json_file(file), deprecated_methods) for file in file_list]
-    #filtered_output = list(filter(lambda x: x[-1] != [],output))
-    #print("Update nodes in {0} files".format(len(filtered_output)))
-    return reports
-
-#--------------MAIN-------------------#
 def main():
     # define CLI arguments
     parser = argparse.ArgumentParser(description='Analyze JSON files')
@@ -324,8 +24,8 @@ def main():
     report_group.add_argument('-c', '--compressed', action='store_true', help='Output package summary')
 
     args = parser.parse_args()
-    print("\n\nBEGIN\n\n")
-    flags = read_json_file(args.deprecated_methods_file)
+    print("\n-- Begin Library Scan--\n")
+    flags = FileUtils.read_json_file(args.deprecated_methods_file)
 
     output_directory = ''
     reports = []
@@ -333,35 +33,40 @@ def main():
     if args.directory:
         full_path = os.path.expanduser(args.directory)
         print(f'Analyzing directory: {full_path}')
-        file_list = find_files_with_extension(full_path,'.dyn')
+        file_list = FileUtils.find_files_with_extension(full_path,'.dyn')
         print('-- Found {0} Files'.format(len(file_list)))
-        valid_file_list = [file for file in file_list if is_valid_json(file)]
+        #valid_file_list = [file for file in file_list if is_valid_json(file)]
+        valid_file_list = file_list
         print("-- Found {0} invalid Files".format((len(file_list)-len(valid_file_list))))
+        if len(valid_file_list) != len(file_list):
+            user_input = input("\n> Display Invalid Files? (y/n);")
+            if user_input.lower() == 'y':
+                [print(filename) for filename in set(file_list).difference(set(valid_file_list))]
 
-        reports = [generate_report(read_json_file(file), flags) for file in valid_file_list]
+        reports = [Reports.generate_report(FileUtils.read_json_file(file), flags) for file in valid_file_list]
 
         print("-- SCAN COMPLETE --\n")
         output_directory = full_path
 
     elif args.file:
         print(f'Analyzing file: {args.file}')
-        reports = generate_report(read_json_file(args.file), flags)
+        reports = Reports.generate_report(FileUtils.read_json_file(args.file), flags)
         print("-- SCAN COMPLETE --")
         output_directory = os.path.dirname(os.path.expanduser(args.file))
 
     output = {}
 
     if args.summary:
-        output['Summary'] = generate_report_summary(reports)
+        output['Summary'] = Reports.generate_report_summary(reports)
         print("- Summary report generated")
     if args.package:
-        output['Package'] = generate_package_report(reports)
+        output['Package'] = Reports.generate_package_report(reports)
         print("- Package report generated")
     if args.detailed:
         output['Detailed'] = reports
         print("- Detailed report generated")
     if args.compressed:
-        compressed = generate_report_compressed(reports)
+        compressed = Reports.generate_report_compressed(reports)
         print("- Compressed report generated")
         """user_input = input("\nDisplay Compressed Summary? (y/n):")
         
@@ -372,7 +77,7 @@ def main():
             csvwriter = csv.writer(csvfile)
             csvwriter.writerows(compressed)
 
-    write_reports_to_json(output, os.path.join(output_directory, "DynamoNodeAnalysis.json"))
+    Reports.write_reports_to_json(output, os.path.join(output_directory, "DynamoNodeAnalysis.json"))
     print ("\n\n-- Dynamo Library Scan Complete --\n\n")
 
 if __name__ == "__main__":

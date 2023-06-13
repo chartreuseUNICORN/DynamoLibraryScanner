@@ -14,7 +14,8 @@
 
             "args":[
                 "C:\\Users\\mclough\\Coding\\Python\\DynamoLibraryScanner\\resources\\FlaggedSearches.json",
-                "-d", "C:\\Users\\mclough\\OneDrive - Microdesk\\_Revit Stuff\\Automation\\DynamoScripts",
+                "-d", "C:\\Users\\mclough\\Microdesk\\TEAM Kahler Slater - General\\Dynamo\\_Upgrades-R24\\Orkestra_2023.06.05",
+                //"-d", "C:\\Users\\mclough\\OneDrive - Microdesk\\_Revit Stuff\\Automation\\DynamoScripts",
                 "-s",
                 "-p",
                 "-a",
